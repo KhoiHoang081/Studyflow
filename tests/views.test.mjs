@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {demoData,emptyData,dateKey} from '../src/core/model.js';
+import {calendar} from '../src/views/calendar.js';
+import {subjects} from '../src/views/subjects.js';
+import {notebook} from '../src/views/notebook.js';
+import {settings} from '../src/views/settings.js';
+const ui={date:dateKey(),mode:'week',filter:'',query:''};
+test('week and month views render all calendar days and events',()=>{const d=demoData();let html=calendar(d,ui);assert.equal((html.match(/<section class="day /g)||[]).length,7);assert.equal((html.match(/data-action="edit-event"/g)||[]).length,5);html=calendar(d,{...ui,mode:'month'});assert.equal((html.match(/<section class="day /g)||[]).length,42);});
+test('calendar search and subject filters exclude unrelated lessons',()=>{const d=demoData();assert.equal((calendar(d,{...ui,filter:'math'}).match(/data-action="edit-event"/g)||[]).length,2);assert.equal((calendar(d,{...ui,query:'mảng'}).match(/data-action="edit-event"/g)||[]).length,1);});
+test('all views render empty state without exceptions',()=>{const d=emptyData();for(const html of [calendar(d,ui),subjects(d),notebook(d,ui),notebook(d,ui,true),settings()])assert.ok(html.includes('<h1>'));});
+test('notes escape stored user content and preserve safe links',()=>{const d=demoData();d.notes[0].title='<script>alert(1)</script>';d.notes[0].links=[{label:'Tài liệu',url:'https://example.com'}];const html=notebook(d,ui);assert.ok(!html.includes('<script>'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(html.includes('rel="noopener noreferrer"'));});
+test('subject summary uses most recently saved assessment for same date',()=>{const d=demoData();d.assessments.push({...d.assessments[0],id:'second',understanding:5,practice:5,confidence:5});assert.ok(subjects(d).includes('100%'));});

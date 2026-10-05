@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {demoData,validate,emptyData,removeSubject,overlaps,safeURL,score,addDays,monday,validDate} from '../src/core/model.js';
+import {esc} from '../src/components/ui.js';
+test('demo and empty data are valid',()=>{assert.equal(validate(demoData()).subjects.length,3);assert.deepEqual(validate(emptyData()),emptyData());});
+test('backup round trip preserves all records',()=>{const d=demoData();assert.deepEqual(validate(JSON.parse(JSON.stringify(d))),d);});
+test('rejects dangling foreign keys and duplicate IDs',()=>{let d=demoData();d.events[0].subjectId='missing';assert.throws(()=>validate(d));d=demoData();d.notes[0].id=d.subjects[0].id;assert.throws(()=>validate(d));});
+test('delete subject cascades only related data',()=>{const d=removeSubject(demoData(),'math');assert.equal(d.subjects.length,2);assert.ok(d.events.every(e=>e.subjectId!=='math'));assert.equal(d.notes.length,0);assert.equal(d.assessments.length,0);validate(d);});
+test('overlap includes containment but not adjoining lessons',()=>{const a={date:'2026-10-05',start:'08:00',end:'10:00'};assert.ok(overlaps(a,{...a,start:'09:00',end:'11:00'}));assert.ok(overlaps(a,{...a,start:'08:30',end:'09:00'}));assert.ok(!overlaps(a,{...a,start:'10:00',end:'11:00'}));assert.ok(!overlaps(a,{...a,date:'2026-10-06'}));});
+test('real dates, leap years, week and year boundaries',()=>{assert.equal(addDays('2026-12-31',1),'2027-01-01');assert.equal(monday('2026-10-04'),'2026-09-28');assert.ok(validDate('2024-02-29'));assert.ok(!validDate('2026-02-29'));});
+test('rejects backwards time, invalid scores and unsafe document links',()=>{let d=demoData();d.events[0].end='07:00';assert.throws(()=>validate(d));d=demoData();d.assessments[0].understanding=6;assert.throws(()=>validate(d));d=demoData();d.notes[0].links=[{label:'bad',url:'javascript:alert(1)'}];assert.throws(()=>validate(d));assert.equal(safeURL('data:text/html,test'),null);assert.ok(safeURL('https://example.com/doc'));});
+test('rejects prototype names as categories and statuses',()=>{const d=demoData();d.subjects[0].category='__proto__';assert.throws(()=>validate(d));});
+test('score is transparent and bounded',()=>{assert.equal(score({understanding:5,practice:5,confidence:5}),100);assert.equal(score({understanding:3,practice:3,confidence:3}),60);});
+test('user text is escaped before rendering',()=>{assert.equal(esc('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');});
